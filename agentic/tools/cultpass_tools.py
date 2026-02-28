@@ -1,6 +1,7 @@
 
 import os
 import sys
+import json
 import logging
 from typing import Dict
 from sqlalchemy import create_engine
@@ -158,10 +159,47 @@ def get_user_reservations(user_id: str) -> Dict[str, str]:
 @mcp.tool()
 def search_experiences_by_keyword(keyword: str) -> Dict[str, str]:
     """
-    Search for CultPass experiences matching a keyword in their title or description.
+    Search for CultPass experiences matching a keyword using vector similarity search.
 
+    Args:
+        keyword: The keyword or phrase to search for in experience titles and descriptions.
+
+    Returns:
+        A dictionary with matching experiences.
+        {
+            "experiences": list - A list of matching experiences with their details
+            "error": str - An error message if an exception occurs
+        }
     """
-    pass
+    try:
+        from langchain_openai import OpenAIEmbeddings
+        from langchain_chroma import Chroma
+
+        embeddings = OpenAIEmbeddings(
+            base_url="https://openai.vocareum.com/v1",
+            api_key=os.getenv("VOCAREUM_API_KEY")
+        )
+
+        vector_store = Chroma(
+            collection_name="cultpass_experiences",
+            embedding_function=embeddings,
+            persist_directory=settings.experience_chroma_db_path
+        )
+
+        results = vector_store.similarity_search(keyword, k=5)
+
+        if not results:
+            return {"experiences": [], "message": f"No experiences found matching '{keyword}'."}
+
+        experiences = [json.loads(doc.page_content) for doc in results]
+
+        logger.info(f"Found {len(experiences)} experiences matching keyword '{keyword}'")
+        return {"experiences": experiences}
+
+    except Exception as e:
+        logger.error(f"Error searching experiences by keyword '{keyword}': {e}")
+        return {"error": f"An error occurred while searching for experiences matching '{keyword}'."}
+
 
 @mcp.tool()
 def get_experience_availability(experience_id: str) -> Dict[str, str]:
@@ -183,7 +221,7 @@ def get_experience_availability(experience_id: str) -> Dict[str, str]:
     """
     try:
         with get_session(engine) as session:
-            experience = session.query(cultpass.Experience).filter_by(id=experience_id).first()
+            experience = session.query(cultpass.Experience).filter_by(experience_id=experience_id).first()
 
             if not experience:
                 return {"error": f"No experience found with ID: {experience_id}"}
@@ -192,9 +230,10 @@ def get_experience_availability(experience_id: str) -> Dict[str, str]:
 
             return {
                 "experience_title": experience.title,
-                "experience_location": experience.location if experience else "N/A",
-                "experience_time": experience.when.isoformat() if experience and experience.when else "N/A",
-                "experience_is_premium": experience.is_premium if experience else False
+                "experience_location": experience.location,
+                "experience_time": experience.when.isoformat() if experience.when else "N/A",
+                "experience_is_premium": experience.is_premium,
+                "slots_available": experience.slots_available
             }
 
     except Exception as e:
