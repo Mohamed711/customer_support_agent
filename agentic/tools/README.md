@@ -38,4 +38,5 @@ python -m pytest tests/
 # Run a specific test file
 python -m pytest tests/test_get_user_subscription.py
 python -m pytest tests/test_search_knowledge_base.py
+python -m pytest tests/test_get_ticket_info.py
 ```
