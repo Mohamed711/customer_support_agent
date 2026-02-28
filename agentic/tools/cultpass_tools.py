@@ -4,11 +4,17 @@ import sys
 import json
 import logging
 from typing import Dict
+from pathlib import Path
+from dotenv import load_dotenv
 from sqlalchemy import create_engine
 
 workspace_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 if workspace_root not in sys.path:
     sys.path.insert(0, workspace_root)
+
+load_dotenv()
+if not os.getenv("VOCAREUM_OPENAPI_KEY"):
+    load_dotenv(Path.home() / ".env")
 
 from utils import get_session
 from data.models import cultpass
@@ -177,7 +183,7 @@ def search_experiences_by_keyword(keyword: str) -> Dict[str, str]:
 
         embeddings = OpenAIEmbeddings(
             base_url="https://openai.vocareum.com/v1",
-            api_key=os.getenv("VOCAREUM_API_KEY")
+            api_key=os.getenv("VOCAREUM_OPENAPI_KEY")
         )
 
         vector_store = Chroma(
