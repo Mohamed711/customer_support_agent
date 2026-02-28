@@ -13,7 +13,7 @@ from utils import get_session
 from data.models import cultpass
 from settings import settings
 
-from tools.tools_mcp_server import mcp
+from agentic.tools.tools_mcp_server import mcp
 
 logger = logging.getLogger(__name__)
 
