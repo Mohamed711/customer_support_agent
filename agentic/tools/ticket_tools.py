@@ -264,3 +264,118 @@ def get_customer_ticket_history(external_user_id: str, limit: int = 5) -> Dict:
     except Exception as e:
         logger.error(f"Error retrieving ticket history for '{external_user_id}': {e}")
         return {"error": f"An error occurred while retrieving ticket history."}
+
+
+@mcp.tool()
+def get_user_preferences(external_user_id: str) -> Dict:
+    """
+    Retrieve stored long-term preferences for a customer (language, channel, notes).
+
+    Use this before composing a response to personalise tone, language, and channel
+    references based on what is known about this customer across sessions.
+
+    Args:
+        external_user_id: The customer's CultPass external user ID.
+
+    Returns:
+        A dictionary with the customer's stored preferences.
+        {
+            "external_user_id": str,
+            "user_name": str,
+            "preferred_language": str,
+            "preferred_channel": str,
+            "notes": str,
+            "error": str - An error message if an exception occurs
+        }
+    """
+    try:
+        with get_session(engine) as session:
+            user = (
+                session.query(udahub.User)
+                .filter_by(external_user_id=external_user_id)
+                .first()
+            )
+            if not user:
+                return {"error": f"No user found with external_user_id: {external_user_id}"}
+
+            prefs = user.preferences
+            return {
+                "external_user_id": external_user_id,
+                "user_name": user.user_name,
+                "preferred_language": prefs.preferred_language if prefs else "en",
+                "preferred_channel": prefs.preferred_channel if prefs else None,
+                "notes": prefs.notes if prefs else None,
+            }
+    except Exception as e:
+        logger.error(f"Error retrieving preferences for '{external_user_id}': {e}")
+        return {"error": "An error occurred while retrieving user preferences."}
+
+
+@mcp.tool()
+def update_user_preferences(
+    external_user_id: str,
+    preferred_language: str = "",
+    preferred_channel: str = "",
+    notes: str = "",
+) -> Dict:
+    """
+    Create or update stored long-term preferences for a customer.
+
+    Call this when you learn new preference information during an interaction
+    (e.g. the customer mentions a preferred language or contact channel).
+    Preferences persist across sessions and are retrieved in future interactions
+    to personalise responses without asking the customer to repeat themselves.
+
+    Args:
+        external_user_id: The customer's CultPass external user ID.
+        preferred_language: ISO language code, e.g. 'en', 'fr', 'ar' (optional).
+        preferred_channel: Preferred contact channel, e.g. 'email', 'chat' (optional).
+        notes: Free-text notes about this customer for future interactions (optional).
+
+    Returns:
+        A dictionary confirming the updated preferences or describing an error.
+        {
+            "external_user_id": str,
+            "preferred_language": str,
+            "preferred_channel": str,
+            "notes": str,
+            "error": str - An error message if an exception occurs
+        }
+    """
+    try:
+        with get_session(engine) as session:
+            user = (
+                session.query(udahub.User)
+                .filter_by(external_user_id=external_user_id)
+                .first()
+            )
+            if not user:
+                return {"error": f"No user found with external_user_id: {external_user_id}"}
+
+            prefs = (
+                session.query(udahub.UserPreferences)
+                .filter_by(user_id=user.user_id)
+                .first()
+            )
+            if not prefs:
+                prefs = udahub.UserPreferences(user_id=user.user_id)
+                session.add(prefs)
+
+            if preferred_language:
+                prefs.preferred_language = preferred_language
+            if preferred_channel:
+                prefs.preferred_channel = preferred_channel
+            if notes:
+                existing = prefs.notes or ""
+                prefs.notes = (existing + "\n" + notes).strip()
+
+            logger.info(f"Updated preferences for external_user_id='{external_user_id}'")
+            return {
+                "external_user_id": external_user_id,
+                "preferred_language": prefs.preferred_language,
+                "preferred_channel": prefs.preferred_channel,
+                "notes": prefs.notes,
+            }
+    except Exception as e:
+        logger.error(f"Error updating preferences for '{external_user_id}': {e}")
+        return {"error": "An error occurred while updating user preferences."}

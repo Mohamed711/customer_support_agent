@@ -43,6 +43,7 @@ class User(Base):
 
     account = relationship("Account", back_populates="users")
     tickets = relationship("Ticket", back_populates="user")
+    preferences = relationship("UserPreferences", uselist=False, back_populates="user")
 
     __table_args__ = (
         UniqueConstraint('account_id', 'external_user_id', name='uq_user_external_per_account'),
@@ -51,6 +52,29 @@ class User(Base):
     def __repr__(self):
         return f"<User(user_id='{self.user_id}', user_name='{self.user_name}', external_user_id='{self.external_user_id}')>"
 
+
+class UserPreferences(Base):
+    """
+    Stores long-term customer preferences that persist across support sessions.
+    Retrieved by the Resolver to personalise responses (language, channel, notes).
+    Updated by the Resolver whenever new preference information is learned during
+    an interaction.
+    """
+    __tablename__ = 'user_preferences'
+
+    user_id = Column(String, ForeignKey('users.user_id'), primary_key=True)
+    preferred_language = Column(String, default='en')
+    preferred_channel = Column(String)
+    notes = Column(Text)
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+    user = relationship("User", back_populates="preferences")
+
+    def __repr__(self):
+        return (
+            f"<UserPreferences(user_id='{self.user_id}', "
+            f"lang='{self.preferred_language}', channel='{self.preferred_channel}')>"
+        )
 
 
 class Ticket(Base):
