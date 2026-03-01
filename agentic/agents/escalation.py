@@ -2,11 +2,10 @@
 import logging
 from typing import Annotated
 
-from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import StateGraph, END
-from langgraph.graph.message import add_messages
+from langgraph.graph.message import add_messages, MessagesState
 from langgraph.prebuilt import ToolNode, tools_condition
 from typing_extensions import TypedDict
 
@@ -18,14 +17,6 @@ from agentic.tools.ticket_tools import (
 from agentic.tools.cultpass_tools import get_user_general_info
 
 logger = logging.getLogger(__name__)
-
-# ---------------------------------------------------------------------------
-# State schema
-# ---------------------------------------------------------------------------
-
-class EscalationState(TypedDict):
-    """Full state carried through the escalation graph."""
-    messages: Annotated[list, add_messages]
 
 # ---------------------------------------------------------------------------
 # Shared resources
@@ -74,7 +65,7 @@ Always be empathetic. The customer should feel heard and confident help is comin
 # Node functions
 # ---------------------------------------------------------------------------
 
-def llm_call(state: EscalationState, config: RunnableConfig) -> dict:
+def llm_call(state: MessagesState, config: RunnableConfig) -> dict:
     """Invoke the LLM (with tools bound) and append its response."""
     logger.debug("llm_call node invoked. message count=%d", len(state["messages"]))
 
@@ -99,7 +90,7 @@ def llm_call(state: EscalationState, config: RunnableConfig) -> dict:
 # Graph assembly
 # ---------------------------------------------------------------------------
 
-builder = StateGraph(EscalationState)
+builder = StateGraph(MessagesState)
 builder.add_node("llm_call", llm_call)
 builder.add_node("tools", ToolNode(ESCALATION_TOOLS))
 
