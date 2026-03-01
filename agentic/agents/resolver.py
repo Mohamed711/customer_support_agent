@@ -11,17 +11,17 @@ from langgraph.prebuilt import ToolNode
 from typing_extensions import TypedDict
 
 from agentic.tools.ticket_tools import (
-    get_ticket_info,
-    update_ticket_status,
-    add_ticket_message,
-    get_customer_ticket_history,
-    get_user_preferences,
-    update_user_preferences,
+   get_ticket_info,
+   update_ticket_status,
+   add_ticket_message,
+   get_customer_ticket_history,
+   get_user_preferences,
+   update_user_preferences,
 )
 from agentic.tools.cultpass_tools import (
-    get_cultpass_user_info,
-    get_user_reservations,
-    get_experience_availability,
+   get_user_general_info,
+   get_user_reservations,
+   get_experience_availability,
 )
 
 logger = logging.getLogger(__name__)
@@ -39,15 +39,15 @@ class ResolverState(TypedDict):
 # ---------------------------------------------------------------------------
 
 RESOLVER_TOOLS = [
-    get_ticket_info,
-    update_ticket_status,
-    add_ticket_message,
-    get_customer_ticket_history,
-    get_user_preferences,
-    update_user_preferences,
-    get_cultpass_user_info,
-    get_user_reservations,
-    get_experience_availability,
+   get_ticket_info,
+   update_ticket_status,
+   add_ticket_message,
+   get_customer_ticket_history,
+   get_user_preferences,
+   update_user_preferences,
+   get_user_general_info,
+   get_user_reservations,
+   get_experience_availability,
 ]
 
 RESOLVER_SYSTEM_PROMPT = """
@@ -76,7 +76,7 @@ Your goal is to RESOLVE customer support tickets by following these steps:
      `update_user_preferences` to persist it for future sessions.
 
 3. **Fetch account context when needed**:
-   - Use `get_cultpass_user_info` to check if the user's account is blocked or has an
+   - Use `get_user_general_info` to check if the user's account is blocked or has an
      active subscription before advising on subscription-related issues.
    - Use `get_user_reservations` for reservation queries.
    - Use `get_experience_availability` when the user asks about specific events.

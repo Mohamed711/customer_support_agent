@@ -15,7 +15,7 @@ from agentic.tools.ticket_tools import (
     update_ticket_status,
     add_ticket_message,
 )
-from agentic.tools.cultpass_tools import get_cultpass_user_info
+from agentic.tools.cultpass_tools import get_user_general_info
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +35,7 @@ ESCALATION_TOOLS = [
     get_ticket_info,
     update_ticket_status,
     add_ticket_message,
-    get_cultpass_user_info
+    get_user_general_info,
 ]
 
 ESCALATION_SYSTEM_PROMPT = """
@@ -47,7 +47,7 @@ Your responsibilities:
 
 1. **Retrieve ticket details** with `get_ticket_info` to review the full context.
 
-2. **Retrieve user profile** with `get_cultpass_user_info` if an external_user_id is
+2. **Retrieve user profile** with `get_user_general_info` if an external_user_id is
    available, to check for blocked status, subscription tier, or billing anomalies.
 
 3. **Draft a structured escalation note** (for the human support lead) that includes:

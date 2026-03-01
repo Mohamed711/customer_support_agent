@@ -20,32 +20,32 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 class ClassificationOutput(BaseModel):
-    """Structured classification produced by the agent."""
+   """Structured classification produced by the agent."""
 
-    issue_type: Literal[
-        "login", "billing", "reservation", "subscription", "account", "general"
-    ] = Field(description="Primary category of the support issue")
+   issue_type: Literal[
+      "login", "billing", "reservation", "subscription", "account", "general"
+   ] = Field(description="Primary category of the support issue")
 
-    urgency: Literal["high", "medium", "low"] = Field(
-        description="Urgency level: high=blocked/payment failure, medium=functional degradation, low=informational."
-    )
+   urgency: Literal["high", "medium", "low"] = Field(
+      description="Urgency level: high=blocked/payment failure, medium=functional degradation, low=informational."
+   )
 
-    sentiment: Literal["frustrated", "negative", "neutral", "positive"] = Field(
-        description="Detected customer sentiment from their message."
-    )
+   sentiment: Literal["frustrated", "negative", "neutral", "positive"] = Field(
+      description="Detected customer sentiment from their message."
+   )
 
-    summary: str = Field(
-        description=(
-            'One-line summary in the format: '
-            '"CLASSIFIED: issue_type=<type>, urgency=<urgency>, sentiment=<sentiment>"'
-        )
-    )
+   summary: str = Field(
+      description=(
+         'One-line summary in the format: '
+         '"CLASSIFIED: issue_type=<type>, urgency=<urgency>, sentiment=<sentiment>"'
+      )
+   )
 
 
 class ClassifierState(TypedDict):
-    """Full state carried through the classifier graph."""
-    messages: Annotated[list, add_messages]
-    classification: Optional[ClassificationOutput]
+   """Full state carried through the classifier graph."""
+   messages: Annotated[list, add_messages]
+   classification: Optional[ClassificationOutput]
 
 # ---------------------------------------------------------------------------
 # Shared resources
