@@ -9,7 +9,7 @@ from langgraph.graph.message import add_messages
 from pydantic import BaseModel, Field
 from typing_extensions import TypedDict
 from langchain_core.runnables import RunnableConfig
-from langgraph.prebuilt import TooNode, tools_condition
+from langgraph.prebuilt import ToolNode, tools_condition
 
 from agentic.tools.ticket_tools import get_ticket_info, update_ticket_status
 
@@ -96,10 +96,11 @@ def extract_classification(state: ClassifierState, config: RunnableConfig) -> di
    """
    logger.debug("extract_classification node invoked. message count=%d", len(state["messages"]))
 
-   llm = config.get("configurable", {}).get("llm_structured", None)
+   llm = config.get("configurable", {}).get("llm", None)
 
    if llm is None:
-      logger.error("No 'llm_structured' found in configurable; falling back to default ChatOpenAI.")
+      logger.warning("No 'llm' found in configurable; falling back to default ChatOpenAI.")
+      return {}
 
    llm_with_tools = llm.bind_tools(CLASSIFIER_TOOLS)
    messages = [SystemMessage(content=CLASSIFIER_SYSTEM_PROMPT)] + state["messages"]
@@ -127,9 +128,8 @@ def extract_classification(state: ClassifierState, config: RunnableConfig) -> di
 
 builder = StateGraph(ClassifierState)
 builder.add_node("extract_classification", extract_classification)
-builder.add_node("tools", TooNode(CLASSIFIER_TOOLS))
+builder.add_node("tools", ToolNode(CLASSIFIER_TOOLS))
 
-# Add the edges of the graph with the appropriate conditions
 builder.set_entry_point("extract_classification")
 builder.add_conditional_edges(
     "extract_classification",
@@ -137,7 +137,6 @@ builder.add_conditional_edges(
 )
 
 builder.add_edge("tools", "extract_classification")
-builder.add_edge("extract_classification", END)
 
 classifier_agent = builder.compile()
 classifier_agent.name = "classifier"

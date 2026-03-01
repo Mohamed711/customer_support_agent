@@ -116,26 +116,27 @@ what you find in the knowledge base.
 # ---------------------------------------------------------------------------
 
 def llm_call(state: ResolverState, config: RunnableConfig) -> dict:
-    """Invoke the LLM (with tools bound) and append its response."""
-    logger.debug("llm_call node invoked. message count=%d", len(state["messages"]))
+   """Invoke the LLM (with tools bound) and append its response."""
+   logger.debug("llm_call node invoked. message count=%d", len(state["messages"]))
 
-    llm = config.get("configurable", {}).get("llm", None)
+   llm = config.get("configurable", {}).get("llm", None)
 
-    if llm is None:
-        logger.error("No 'llm' found in configurable; falling back to default ChatOpenAI.")
+   if llm is None:
+      logger.warning("No 'llm' found in configurable; falling back to default ChatOpenAI.")
+      return {}
 
-    llm_with_tools = llm.bind_tools(RESOLVER_TOOLS)
-    messages = [SystemMessage(content=RESOLVER_SYSTEM_PROMPT)] + state["messages"]
+   llm_with_tools = llm.bind_tools(RESOLVER_TOOLS)
+   messages = [SystemMessage(content=RESOLVER_SYSTEM_PROMPT)] + state["messages"]
 
-    try:
-        response = llm_with_tools.invoke(messages)
-    except Exception as exc:
-        logger.exception("LLM call failed: %s", exc)
-        raise
+   try:
+      response = llm_with_tools.invoke(messages)
+   except Exception as exc:
+      logger.exception("LLM call failed: %s", exc)
+      raise
 
-    has_tool_calls = bool(getattr(response, "tool_calls", None))
-    logger.info("LLM response received. has_tool_calls=%s", has_tool_calls)
-    return {"messages": [response]}
+   has_tool_calls = bool(getattr(response, "tool_calls", None))
+   logger.info("LLM response received. has_tool_calls=%s", has_tool_calls)
+   return {"messages": [response]}
 
 # ---------------------------------------------------------------------------
 # Routing

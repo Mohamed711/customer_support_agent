@@ -2,6 +2,7 @@
 import logging
 from typing import Annotated
 
+from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import StateGraph, END
@@ -80,7 +81,8 @@ def llm_call(state: EscalationState, config: RunnableConfig) -> dict:
     llm = config.get("configurable", {}).get("llm", None)
 
     if llm is None:
-        logger.error("No 'llm' found in configurable; falling back to default ChatOpenAI.")
+        logger.warning("No 'llm' found in configurable; falling back to default ChatOpenAI.")
+        return {}
 
     llm_with_tools = llm.bind_tools(ESCALATION_TOOLS)
     messages = [SystemMessage(content=ESCALATION_SYSTEM_PROMPT)] + state["messages"]

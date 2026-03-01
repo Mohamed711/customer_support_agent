@@ -5,7 +5,7 @@ from typing import Annotated, List, Optional
 from langchain_core.messages import SystemMessage, AIMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import StateGraph, END
-from langgraph.graph.message import add_messages, MessagesState
+from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode, tools_condition
 from pydantic import BaseModel, Field
 from typing_extensions import TypedDict
@@ -100,16 +100,17 @@ to resolve the customer's issue.
 # Node functions
 # ---------------------------------------------------------------------------
 
-def retriever(state: MessagesState, config: RunnableConfig) -> str:
+def retriever(state: RetrieverState, config: RunnableConfig) -> dict:
    """ The retriever agent function """
 
    logger.debug("retriever node invoked. message count=%d with message %s",
                 len(state["messages"]), state["messages"])
 
-   llm = config.get("configurable", {}).get("llm_structured", None)
+   llm = config.get("configurable", {}).get("llm", None)
 
    if llm is None:
-      logger.error("No 'llm_structured' found in configurable; falling back to default ChatOpenAI.")
+      logger.warning("No 'llm' found in configurable; falling back to default ChatOpenAI.")
+      return {}
 
    llm_with_tools = llm.bind_tools(RETRIEVER_TOOLS)
    messages = [SystemMessage(content=RETRIEVER_SYSTEM_PROMPT)] + state["messages"]
@@ -149,7 +150,6 @@ builder.add_node("tools", ToolNode(RETRIEVER_TOOLS))
 builder.set_entry_point("retriever")
 builder.add_conditional_edges("retriever", tools_condition)
 builder.add_edge("tools", "retriever")
-builder.add_edge("retriever", END)
 
 retriever_agent = builder.compile()
 retriever_agent.name = "retriever"
