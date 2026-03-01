@@ -120,8 +120,9 @@ def llm_call(state: ResolverState, config: RunnableConfig) -> dict:
     logger.debug("llm_call node invoked. message count=%d", len(state["messages"]))
 
     llm = config.get("configurable", {}).get("llm", None)
+
     if llm is None:
-        logger.warning("No 'llm' found in configurable; falling back to default ChatOpenAI.")
+        logger.error("No 'llm' found in configurable; falling back to default ChatOpenAI.")
 
     llm_with_tools = llm.bind_tools(RESOLVER_TOOLS)
     messages = [SystemMessage(content=RESOLVER_SYSTEM_PROMPT)] + state["messages"]
