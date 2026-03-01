@@ -1,5 +1,6 @@
 
 
+import logging
 from typing import Annotated, Literal, Optional
 
 from langchain_openai import ChatOpenAI
@@ -12,6 +13,8 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.prebuilt import TooNode, tools_condition
 
 from agentic.tools.ticket_tools import get_ticket_info, update_ticket_status
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # State schema
@@ -92,11 +95,31 @@ def extract_classification(state: ClassifierState, config: RunnableConfig) -> di
    """
    Run a structured-output pass to populate ClassifierState.classification.
    """
+   logger.debug("extract_classification node invoked. message count=%d", len(state["messages"]))
+
    llm = config.get("configurable", {}).get("llm_structured", None)
+
+   if llm is None:
+      logger.error("No 'llm_structured' found in configurable; falling back to default ChatOpenAI.")
+
    llm_with_tools = llm.bind_tools(CLASSIFIER_TOOLS)
    messages = [SystemMessage(content=CLASSIFIER_SYSTEM_PROMPT)] + state["messages"]
+
+   logger.debug("Invoking structured-output LLM with %d tools.", len(CLASSIFIER_TOOLS))
    llm_with_structured = llm_with_tools.with_structured_output(ClassificationOutput)
-   result: ClassificationOutput = llm_with_structured.invoke(messages)
+
+   try:
+      result: ClassificationOutput = llm_with_structured.invoke(messages)
+   except Exception as exc:
+      logger.exception("Structured-output LLM call failed: %s", exc)
+      raise
+
+   logger.info(
+      "Classification complete — issue_type=%s, urgency=%s, sentiment=%s",
+      result.issue_type,
+      result.urgency,
+      result.sentiment,
+   )
    return {"classification": result}
 
 # ---------------------------------------------------------------------------
