@@ -181,3 +181,86 @@ def add_ticket_message(ticket_id: str, content: str, role: str = "agent") -> Dic
     except Exception as e:
         logger.error(f"Error adding message to ticket {ticket_id}: {e}")
         return {"error": f"An error occurred while adding a message to ticket {ticket_id}."}
+
+
+@mcp.tool()
+def get_customer_ticket_history(external_user_id: str, limit: int = 5) -> Dict:
+    """
+    Retrieve the support history of a returning customer across all their past tickets.
+
+    Use this tool to personalise responses and avoid asking customers to repeat
+    information they have already provided in previous interactions.
+
+    Args:
+        external_user_id: The customer's CultPass external user ID.
+        limit: Maximum number of past tickets to return, most recent first (default: 5).
+
+    Returns:
+        A dictionary containing the customer's ticket history.
+        {
+            "external_user_id": str,
+            "user_name": str,
+            "total_tickets": int,
+            "tickets": List[Dict] - Each entry has ticket_id, created_at, channel,
+                        status, issue_type, tags, and last_ai_message (the most recent
+                        AI response, if any),
+            "error": str - An error message if an exception occurs
+        }
+    """
+    try:
+        with get_session(engine) as session:
+            user = (
+                session.query(udahub.User)
+                .filter_by(external_user_id=external_user_id)
+                .first()
+            )
+
+            if not user:
+                return {
+                    "external_user_id": external_user_id,
+                    "total_tickets": 0,
+                    "tickets": [],
+                    "message": "No UdaHub account found for this external user ID.",
+                }
+
+            tickets = (
+                session.query(udahub.Ticket)
+                .filter_by(user_id=user.user_id)
+                .order_by(udahub.Ticket.created_at.desc())
+                .limit(limit)
+                .all()
+            )
+
+            history = []
+            for ticket in tickets:
+                meta = ticket.ticket_metadata
+                ai_messages = [
+                    msg.content
+                    for msg in ticket.messages
+                    if msg.role == udahub.RoleEnum.ai
+                ]
+                last_ai_message = ai_messages[-1] if ai_messages else None
+
+                history.append({
+                    "ticket_id": ticket.ticket_id,
+                    "created_at": ticket.created_at.isoformat() if ticket.created_at else None,
+                    "channel": ticket.channel,
+                    "status": meta.status if meta else None,
+                    "issue_type": meta.main_issue_type if meta else None,
+                    "tags": meta.tags if meta else None,
+                    "last_ai_message": last_ai_message,
+                })
+
+            logger.info(
+                f"Retrieved {len(history)} past tickets for external_user_id='{external_user_id}'"
+            )
+            return {
+                "external_user_id": external_user_id,
+                "user_name": user.user_name,
+                "total_tickets": len(history),
+                "tickets": history,
+            }
+
+    except Exception as e:
+        logger.error(f"Error retrieving ticket history for '{external_user_id}': {e}")
+        return {"error": f"An error occurred while retrieving ticket history."}

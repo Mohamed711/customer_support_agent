@@ -24,14 +24,17 @@ User Input
     │ Tools:      │ │ Tools:     │ │ Tools:         │  │ Tools:         │
     │ - get_      │ │ - search_  │ │ - get_ticket_  │  │ - get_ticket_  │
     │   ticket_   │ │   knowledge│ │   info         │  │   info         │
-    │   info      │ │   _base    │ │ - get_cultpass_│  │ - get_cultpass_│
-    │ - update_   │ │            │ │   user_info    │  │   user_info    │
-    │   ticket_   │ │ Output:    │ │ - get_user_    │  │ - add_ticket_  │
-    │   status    │ │ RETRIEVAL_ │ │   reservations │  │   message      │
-    │             │ │ RESULT:    │ │ - get_         │  │ - update_      │
-    │             │ │ confidence │ │   experience_  │  │   ticket_      │
-    │             │ │ =0.0–1.0   │ │   availability │  │   status       │
-    │             │ │            │ │ - add_ticket_  │  └────────────────┘
+    │   info      │ │   _base    │ │ - get_customer_│  │ - get_cultpass_│
+    │ - update_   │ │            │ │   ticket_      │  │   user_info    │
+    │   ticket_   │ │ Output:    │ │   history      │  │ - add_ticket_  │
+    │   status    │ │ RETRIEVAL_ │ │ - get_cultpass_│  │   message      │
+    │             │ │ RESULT:    │ │   user_info    │  │ - update_      │
+    │             │ │ confidence │ │ - get_user_    │  │   ticket_      │
+    │             │ │ =0.0–1.0   │ │   reservations │  │   status       │
+    │             │ │            │ │ - get_         │  └────────────────┘
+    │             │ │            │ │   experience_  │
+    │             │ │            │ │   availability │
+    │             │ │            │ │ - add_ticket_  │
     │             │ │            │ │   message      │
     │             │ │            │ │ - update_      │
     │             │ │            │ │   ticket_      │
@@ -63,6 +66,7 @@ User Input
 
 ### 4. Resolver Agent
 - **Role**: Composes the final resolution using KB articles already retrieved (present in conversation context) and CultPass DB lookups. Does **not** search the KB — that is the Retriever's job.
+- **Personalisation**: Calls `get_customer_ticket_history` (when an `external_user_id` is available) to surface prior interactions, allowing it to acknowledge repeat issues and personalise the response for returning customers.
 - **Resolution**: Appends AI response to ticket thread; sets status to `resolved`.
 - **Escalation Trigger**: Returns "NEEDS_ESCALATION" when manual intervention is required.
 
@@ -80,20 +84,22 @@ User Input
 | Short-term     | LangGraph `MemorySaver`           | Per session (thread_id = ticket_id) |
 | Long-term      | SQLite `ticket_messages` table    | Permanent; all messages persisted |
 | Classification | SQLite `ticket_metadata` table    | Permanent; issue_type, tags, status |
+| Customer history | `get_customer_ticket_history` tool | Cross-ticket; retrieved on demand by Resolver to personalise responses for returning customers |
 
 ---
 
 ## Tools
 
-| Tool                       | Agent(s)               |
-|----------------------------|------------------------|
-| `search_knowledge_base`    | Retriever              |
-| `get_ticket_info`          | Classifier, Resolver, Escalation |
-| `update_ticket_status`     | Classifier, Resolver, Escalation |
-| `add_ticket_message`       | Resolver, Escalation   |
-| `get_cultpass_user_info`   | Resolver, Escalation   |
-| `get_user_reservations`    | Resolver               |
-| `get_experience_availability` | Resolver            |
+| Tool                          | Agent(s)               |
+|-------------------------------|------------------------|
+| `search_knowledge_base`       | Retriever              |
+| `get_ticket_info`             | Classifier, Resolver, Escalation |
+| `update_ticket_status`        | Classifier, Resolver, Escalation |
+| `add_ticket_message`          | Resolver, Escalation   |
+| `get_customer_ticket_history` | Resolver               |
+| `get_cultpass_user_info`      | Resolver, Escalation   |
+| `get_user_reservations`       | Resolver               |
+| `get_experience_availability` | Resolver               |
 
 ---
 
