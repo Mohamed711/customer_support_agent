@@ -11,9 +11,11 @@ User Input
 │                                                         │
 │  Routing rules:                                         │
 │    1. New message  → Classifier → Retriever             │
-│    2. confidence ≥ level  → Resolver → Return answer    │
-│    3. confidence < level  → Escalation Agent (direct)   │
-│    4. NEEDS_ESCALATION signal → Escalation Agent        │
+│    2. high urgency & confidence ≥ 0.75 → Resolver       │
+│    3. high urgency & confidence < 0.75 → Escalation     │
+│    4. normal urgency & confidence ≥ 0.60 → Resolver     │
+│    5. normal urgency & confidence < 0.60 → Escalation   │
+│    6. NEEDS_ESCALATION signal → Escalation Agent        │
 └──────────┬──────────────┬──────────────┬────────────────┘
            │              │              │
     ┌──────▼──────┐ ┌─────▼──────┐ ┌──── ▼──────────┐  ┌────────────────┐
@@ -54,7 +56,10 @@ User Input
 ### 3. Retriever Agent
 - **Role**: Searches the knowledge base and **evaluates confidence** based on reading the content of the retrieved articles. The LLM judges how well the KB can answer the customer's question and produces a confidence score (0.0–1.0).
 - **Output signal**: `RETRIEVAL_RESULT: confidence=<score>, articles_found=<count>`
-- **Routing impact**: Supervisor routes to Resolver if confidence ≥ level; routes directly to Escalation if confidence < level.
+- **Routing impact** (urgency-aware dual thresholds):
+  - **High urgency**: confidence ≥ 0.75 → Resolver; confidence < 0.75 → Escalation directly.
+  - **Normal urgency** (medium / low): confidence ≥ 0.60 → Resolver; confidence < 0.60 → Escalation directly.
+  - High-urgency tickets demand a stricter KB match — if the KB is not highly confident, a human agent is more appropriate than a partially-informed automated response.
 
 ### 4. Resolver Agent
 - **Role**: Composes the final resolution using KB articles already retrieved (present in conversation context) and CultPass DB lookups. Does **not** search the KB — that is the Retriever's job.
@@ -64,7 +69,7 @@ User Input
 ### 5. Escalation Agent
 - **Role**: Writes a structured escalation note (for human lead) + empathetic customer message.
 - **Outputs**: Sets ticket status to `escalated`; appends both a system note and customer-facing message.
-- **Triggered by**: Low retriever confidence (< level) OR resolver returning "NEEDS_ESCALATION".
+- **Triggered by**: Retriever confidence below the urgency-appropriate threshold (< 0.75 for high urgency, < 0.60 for normal) OR resolver returning "NEEDS_ESCALATION".
 
 ---
 
@@ -106,9 +111,15 @@ User Input
 5. Retriever searches KB → reads article content → LLM rates confidence (0.0–1.0)
    Returns: RETRIEVAL_RESULT: confidence=<score>, articles_found=<count>
         ↓
-6a. confidence >= level → Supervisor routes to Resolver
-        ↓
-7a. Resolver uses retrieved articles + CultPass DB lookups → composes answer
+6. Supervisor applies urgency-aware confidence threshold:
+   ┌─────────────────┬───────────────┬──────────────────────────────┐
+   │ Urgency         │ Threshold     │ Routing                      │
+   ├─────────────────┼───────────────┼──────────────────────────────┤
+   │ high            │ 0.75          │ < 0.75 → Escalation (direct) │
+   │ medium / low    │ 0.60          │ < 0.60 → Escalation (direct) │
+   └─────────────────┴───────────────┴──────────────────────────────┘
+        ↓ (confidence meets threshold)
+7. Resolver uses retrieved articles + CultPass DB lookups → composes answer
         ↓
 8a. Resolver saves response → status = 'resolved' → DONE
 8b. Resolver cannot resolve → returns "NEEDS_ESCALATION"
