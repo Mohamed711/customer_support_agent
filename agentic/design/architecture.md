@@ -1,0 +1,120 @@
+# UDA-Hub — System Architecture
+
+## Agent Graph
+
+```
+User Input
+      │
+      ▼
+┌─────────────────────────────────────────────────────────┐
+│                        SUPERVISOR                       │
+│                                                         │
+│  Routing rules:                                         │
+│    1. New message  → Classifier → Retriever             │
+│    2. confidence ≥ level  → Resolver → Return answer    │
+│    3. confidence < level  → Escalation Agent (direct)   │
+│    4. NEEDS_ESCALATION signal → Escalation Agent        │
+└──────────┬──────────────┬──────────────┬────────────────┘
+           │              │              │
+    ┌──────▼──────┐ ┌─────▼──────┐ ┌──── ▼──────────┐  ┌────────────────┐
+    │  CLASSIFIER │ │  RETRIEVER │ │    RESOLVER    │  │   ESCALATION   │
+    │             │ │            │ │                │  │                │
+    │ Tools:      │ │ Tools:     │ │ Tools:         │  │ Tools:         │
+    │ - get_      │ │ - search_  │ │ - get_ticket_  │  │ - get_ticket_  │
+    │   ticket_   │ │   knowledge│ │   info         │  │   info         │
+    │   info      │ │   _base    │ │ - get_cultpass_│  │ - get_cultpass_│
+    │ - update_   │ │            │ │   user_info    │  │   user_info    │
+    │   ticket_   │ │ Output:    │ │ - get_user_    │  │ - add_ticket_  │
+    │   status    │ │ RETRIEVAL_ │ │   reservations │  │   message      │
+    │             │ │ RESULT:    │ │ - get_         │  │ - update_      │
+    │             │ │ confidence │ │   experience_  │  │   ticket_      │
+    │             │ │ =0.0–1.0   │ │   availability │  │   status       │
+    │             │ │            │ │ - add_ticket_  │  └────────────────┘
+    │             │ │            │ │   message      │
+    │             │ │            │ │ - update_      │
+    │             │ │            │ │   ticket_      │
+    │             │ │            │ │   status       │
+    └─────────────┘ └────────────┘ └────────────────┘
+```
+
+---
+
+## Agents
+
+### 1. Supervisor
+- **Role**: Orchestrates all sub-agents; decides routing based on conversation state and retriever confidence.
+- **Memory**: LangGraph `MemorySaver` – per-session short-term memory keyed by `thread_id`.
+
+### 2. Classifier Agent
+- **Role**: Reads the customer message and classifies the issue.
+- **Outputs**: `issue_type`, `urgency` → persisted to `ticket_metadata` via `update_ticket_status`.
+- **Issue Types**: login | billing | reservation | subscription | account | general
+- **Urgency Levels**: high | medium | low
+
+### 3. Retriever Agent
+- **Role**: Searches the knowledge base and **evaluates confidence** based on reading the content of the retrieved articles. The LLM judges how well the KB can answer the customer's question and produces a confidence score (0.0–1.0).
+- **Output signal**: `RETRIEVAL_RESULT: confidence=<score>, articles_found=<count>`
+- **Routing impact**: Supervisor routes to Resolver if confidence ≥ level; routes directly to Escalation if confidence < level.
+
+### 4. Resolver Agent
+- **Role**: Composes the final resolution using KB articles already retrieved (present in conversation context) and CultPass DB lookups. Does **not** search the KB — that is the Retriever's job.
+- **Resolution**: Appends AI response to ticket thread; sets status to `resolved`.
+- **Escalation Trigger**: Returns "NEEDS_ESCALATION" when manual intervention is required.
+
+### 5. Escalation Agent
+- **Role**: Writes a structured escalation note (for human lead) + empathetic customer message.
+- **Outputs**: Sets ticket status to `escalated`; appends both a system note and customer-facing message.
+- **Triggered by**: Low retriever confidence (< level) OR resolver returning "NEEDS_ESCALATION".
+
+---
+
+## Memory Architecture
+
+| Memory Type    | Mechanism                         | Scope           |
+|---------------|-----------------------------------|-----------------|
+| Short-term     | LangGraph `MemorySaver`           | Per session (thread_id = ticket_id) |
+| Long-term      | SQLite `ticket_messages` table    | Permanent; all messages persisted |
+| Classification | SQLite `ticket_metadata` table    | Permanent; issue_type, tags, status |
+
+---
+
+## Tools
+
+| Tool                       | Agent(s)               |
+|----------------------------|------------------------|
+| `search_knowledge_base`    | Retriever              |
+| `get_ticket_info`          | Classifier, Resolver, Escalation |
+| `update_ticket_status`     | Classifier, Resolver, Escalation |
+| `add_ticket_message`       | Resolver, Escalation   |
+| `get_cultpass_user_info`   | Resolver, Escalation   |
+| `get_user_reservations`    | Resolver               |
+| `get_experience_availability` | Resolver            |
+
+---
+
+## Decision Flow
+
+```
+1. User sends message
+        ↓
+2. Supervisor receives → routes to Classifier
+        ↓
+3. Classifier analyses issue → updates ticket_metadata (issue_type, urgency, sentiment)
+        ↓
+4. Supervisor routes to Retriever
+        ↓
+5. Retriever searches KB → reads article content → LLM rates confidence (0.0–1.0)
+   Returns: RETRIEVAL_RESULT: confidence=<score>, articles_found=<count>
+        ↓
+6a. confidence >= level → Supervisor routes to Resolver
+        ↓
+7a. Resolver uses retrieved articles + CultPass DB lookups → composes answer
+        ↓
+8a. Resolver saves response → status = 'resolved' → DONE
+8b. Resolver cannot resolve → returns "NEEDS_ESCALATION"
+        ↓
+6b / 8b. Supervisor routes to Escalation Agent
+        ↓
+9. Escalation Agent writes human note + customer message → status = 'escalated' → DONE
+```
+
