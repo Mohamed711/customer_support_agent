@@ -3,8 +3,7 @@
 import logging
 from typing import Annotated, Literal, Optional
 
-from langchain_openai import ChatOpenAI
-from langchain_core.messages import SystemMessage, ToolMessage
+from langchain_core.messages import SystemMessage
 from langgraph.graph import StateGraph, END
 from langgraph.graph.message import add_messages
 from pydantic import BaseModel, Field
@@ -141,4 +140,4 @@ builder.add_edge("tools", "extract_classification")
 builder.add_edge("extract_classification", END)
 
 classifier_agent = builder.compile()
-classifier_agent.name = "classifier_agent"
+classifier_agent.name = "classifier"
